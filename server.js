@@ -24,6 +24,21 @@ const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || '*';
 
 const app = express();
 
+// CORS — страница с игрой открывается либо просто как локальный файл
+// (origin "null"), либо с другого домена, поэтому разрешаем кросс-доменные
+// запросы к служебным HTTP-эндпоинтам PeerJS (не к самому WebRTC-трафику,
+// он идёт напрямую между браузерами). ВАЖНО: этот middleware должен стоять
+// ДО роутов ниже — иначе Express успевает ответить на "/" и "/health" до
+// того, как заголовок вообще выставится, и браузер блокирует ответ по CORS
+// (именно так и было раньше — баг).
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', ALLOW_ORIGIN);
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // Простой health-check — удобно для мониторинга/хостинга (Render, Railway,
 // UptimeRobot и т.п. обычно дергают "/", чтобы понять, что сервис жив).
 app.get('/', (req, res) => {
@@ -32,18 +47,6 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.status(200).json({ ok: true, uptime: process.uptime() });
-});
-
-// CORS — страница с игрой открывается с другого домена (например, GitHub
-// Pages или локально у пользователя), поэтому разрешаем кросс-доменные
-// запросы к служебным HTTP-эндпоинтам PeerJS (не к самому WebRTC-трафику,
-// он идёт напрямую между браузерами).
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', ALLOW_ORIGIN);
-  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
 });
 
 const server = app.listen(PORT, () => {
